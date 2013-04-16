@@ -6,7 +6,7 @@
 #define MY_UUID { 0x1F, 0x8A, 0x52, 0xAB, 0x4E, 0x33, 0x42, 0x26, 0xA8, 0x9F, 0x46, 0xAB, 0x2A, 0xB5, 0x00, 0xB5 }
 PBL_APP_INFO(MY_UUID,
              "LinesWatch", "Tito",
-             0, 1, /* App version */
+             1, 1, /* App version */
              INVALID_RESOURCE,
              APP_INFO_WATCH_FACE);
 
