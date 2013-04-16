@@ -32,6 +32,11 @@ void draw_cross(Layer *layer, GContext *ctx) {
     NB: The last bit is useless                                               */
 void draw_bars(char byte, Layer *layer, GContext *ctx) {
     graphics_context_set_fill_color(ctx, GColorWhite);
+    
+    /* We draw the two points visible for 6, 8 and 9 */
+    graphics_fill_rect(ctx, GRect(33, 25, 4, 4), 0, GCornerNone);
+    graphics_fill_rect(ctx, GRect(33, 53, 4, 4), 0, GCornerNone);
+    
     if(((byte & ( 1 << 7 )) >> 7) == 0b00000001) {
         graphics_fill_rect(ctx, GRect(0, 25, 37, 4), 0, GCornerNone);    
     }
@@ -77,29 +82,32 @@ static void draw_number(char number, Layer *layer, GContext *ctx) {
             draw_bars(0b00110000, layer, ctx);
             break;
         case 6:
-            draw_bars(0b00100010, layer, ctx);
+            draw_bars(0b00100000, layer, ctx);
             break;
         case 7:
             draw_bars(0b10001010, layer, ctx);
             break;
         case 8:
-            draw_bars(0b01000010, layer, ctx);
+            draw_bars(0b00000000, layer, ctx);
             break;
         case 9:
-            draw_bars(0b01010000, layer, ctx);
+            draw_bars(0b00010000, layer, ctx);
             break;
     }
 }
 
 int hour, min;
-void handle_minute_tick(AppContextRef ctx, PebbleTickEvent *t) {
-    (void)t;
-    (void)ctx;
-    
-    PblTm *ptm = t->tick_time;
-    hour = ptm->tm_hour;
-    min = ptm->tm_min;
-    
+void handle_minute_tick(AppContextRef ctx, PebbleTickEvent *tickE) {
+    PblTm t;
+    get_time(&t);
+    min = t.tm_min;
+    hour = t.tm_hour;
+
+    if(!clock_is_24h_style()) {
+        hour = hour%12;
+        if(hour == 0) hour=12;
+    }
+
     layer_mark_dirty(&quadrant0);
     layer_mark_dirty(&quadrant1);
     layer_mark_dirty(&quadrant2);
@@ -133,23 +141,26 @@ void handle_init(AppContextRef ctx) {
     /* Cross */
     layer_init(&crossLayer, GRect(0, 0, 144, 168));
     crossLayer.update_proc = draw_cross;
-    layer_add_child(&window.layer, &crossLayer);
 
     /* Each quarter of screen is 70x82 pixels */
     layer_init(&quadrant0, GRect(0, 0, 70, 82));
     quadrant0.update_proc = draw_quadrant0;
-    layer_add_child(&window.layer, &quadrant0);
 
     layer_init(&quadrant1, GRect(74, 0, 70, 82));
     quadrant1.update_proc = draw_quadrant1;
-    layer_add_child(&window.layer, &quadrant1);
     
     layer_init(&quadrant2, GRect(0, 86, 70, 82));
     quadrant2.update_proc = draw_quadrant2;
-    layer_add_child(&window.layer, &quadrant2);
     
     layer_init(&quadrant3, GRect(74, 86, 70, 82));
     quadrant3.update_proc = draw_quadrant3;
+    
+    /* Draw */
+    handle_minute_tick(ctx, NULL);
+    layer_add_child(&window.layer, &crossLayer);
+    layer_add_child(&window.layer, &quadrant0);
+    layer_add_child(&window.layer, &quadrant1);
+    layer_add_child(&window.layer, &quadrant2);
     layer_add_child(&window.layer, &quadrant3);
 }
 
