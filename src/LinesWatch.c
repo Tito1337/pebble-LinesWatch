@@ -29,7 +29,7 @@ void draw_cross(Layer *layer, GContext *ctx) {
     0b01010010 will draw  | which is the number 4.
                          _
                           |                                                   
-    NB: The last bit is useless                                               */
+    The last bit is uniquely used for the serif of the 1                      */
 void draw_bars(char byte, Layer *layer, GContext *ctx) {
     graphics_context_set_fill_color(ctx, GColorWhite);
     
@@ -38,25 +38,28 @@ void draw_bars(char byte, Layer *layer, GContext *ctx) {
     graphics_fill_rect(ctx, GRect(33, 53, 4, 4), 0, GCornerNone);
     
     if(((byte & ( 1 << 7 )) >> 7) == 0b00000001) {
-        graphics_fill_rect(ctx, GRect(0, 25, 37, 4), 0, GCornerNone);    
+        graphics_fill_rect(ctx, GRect(0, 25, 37, 4), 0, GCornerNone);
     }
     if(((byte & ( 1 << 6 )) >> 6) == 0b00000001) {
-        graphics_fill_rect(ctx, GRect(33, 0, 4, 29), 0, GCornerNone);    
+        graphics_fill_rect(ctx, GRect(33, 0, 4, 29), 0, GCornerNone);
     }
     if(((byte & ( 1 << 5 )) >> 5) == 0b00000001) {
-        graphics_fill_rect(ctx, GRect(33, 25, 37, 4), 0, GCornerNone);    
+        graphics_fill_rect(ctx, GRect(33, 25, 37, 4), 0, GCornerNone);
     }
     if(((byte & ( 1 << 4 )) >> 4) == 0b00000001) {
-        graphics_fill_rect(ctx, GRect(0, 53, 37, 4), 0, GCornerNone);    
+        graphics_fill_rect(ctx, GRect(0, 53, 37, 4), 0, GCornerNone);
     }
     if(((byte & ( 1 << 3 )) >> 3) == 0b00000001) {
-        graphics_fill_rect(ctx, GRect(33, 25, 4, 32), 0, GCornerNone);    
+        graphics_fill_rect(ctx, GRect(33, 25, 4, 32), 0, GCornerNone);
     }
     if(((byte & ( 1 << 2 )) >> 2) == 0b00000001) {
-        graphics_fill_rect(ctx, GRect(33, 53, 37, 4), 0, GCornerNone);    
+        graphics_fill_rect(ctx, GRect(33, 53, 37, 4), 0, GCornerNone);
     }
     if(((byte & ( 1 << 1 )) >> 1) == 0b00000001) {
-        graphics_fill_rect(ctx, GRect(33, 53, 4, 29), 0, GCornerNone);    
+        graphics_fill_rect(ctx, GRect(33, 53, 4, 29), 0, GCornerNone);
+    }
+    if(((byte & ( 1 << 0 )) >> 0) == 0b00000001) {
+        graphics_fill_rect(ctx, GRect(29, 0, 4, 29), 0, GCornerNone);
     }
 }
 
@@ -67,7 +70,7 @@ static void draw_number(char number, Layer *layer, GContext *ctx) {
             draw_bars(0b00001000, layer, ctx);
             break;
         case 1:
-            draw_bars(0b01001010, layer, ctx);
+            draw_bars(0b00001011, layer, ctx);
             break;
         case 2:
             draw_bars(0b10000100, layer, ctx);
