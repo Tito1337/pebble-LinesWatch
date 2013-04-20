@@ -5,7 +5,7 @@
 #define MY_UUID { 0x1F, 0x8A, 0x52, 0xAB, 0x4E, 0x33, 0x42, 0x26, 0xA8, 0x9F, 0x46, 0xAB, 0x2A, 0xB5, 0x00, 0xB5 }
 PBL_APP_INFO(MY_UUID,
              "LinesWatch", "Tito",
-             2, 0, /* App version */
+             2, 1, /* App version */
              INVALID_RESOURCE,
              APP_INFO_WATCH_FACE);
 
@@ -34,6 +34,7 @@ typedef struct {
     Layer points[2];
     Layer segments[8];
     PropertyAnimation animations[8];
+    bool cancelAnimations[8];
     char currentSegments;
 } Quadrant;
 Quadrant quadrants[4];
@@ -61,6 +62,7 @@ const Segment Segments[8] = {
 /* Other globals */
 Window window;
 Layer cross;
+AppContextRef context;
 
 /*******************/
 /* GENERAL PURPOSE */
@@ -87,6 +89,11 @@ void segment_show(Quadrant *quadrant, int id) {
     GRect visible = Segments[id].visible;
     GRect invisible = Segments[id].invisible;
 
+    /* Ensures the segment is not animating to prevent bugs */
+    if(animation_is_scheduled(&quadrant->animations[id].animation)) {
+        animation_unschedule(&quadrant->animations[id].animation);
+    }
+    
     property_animation_init_layer_frame(&quadrant->animations[id], &quadrant->segments[id], &invisible, &visible);
     animation_set_duration(&quadrant->animations[id].animation, AnimationTime);
     animation_set_curve(&quadrant->animations[id].animation, AnimationCurveLinear);
@@ -98,6 +105,11 @@ void segment_hide(Quadrant *quadrant, int id) {
     GRect visible = Segments[id].visible;
     GRect invisible = Segments[id].invisible;
 
+    /* Ensures the segment is not animating to prevent bugs */
+    if(animation_is_scheduled(&quadrant->animations[id].animation)) {
+        animation_unschedule(&quadrant->animations[id].animation);
+    }
+    
     property_animation_init_layer_frame(&quadrant->animations[id], &quadrant->segments[id], &visible, &invisible);
     animation_set_duration(&quadrant->animations[id].animation, AnimationTime);
     animation_set_curve(&quadrant->animations[id].animation, AnimationCurveLinear);
@@ -216,6 +228,8 @@ void handle_init(AppContextRef ctx) {
 /* handle_minute_tick is called at every minute/time change. It gets the hour,
     minute and sends the numbers to each quadrant */
 void handle_minute_tick(AppContextRef ctx, PebbleTickEvent *tickE) {
+    context = ctx;
+
     PblTm t;
     get_time(&t);
     int hour, min;
