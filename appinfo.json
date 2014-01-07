@@ -1,0 +1,15 @@
+{
+  "uuid": "1f8a52ab-4e33-4226-a89f-46ab2ab500b5",
+  "shortName": "LinesWatch",
+  "longName": "LinesWatch",
+  "companyName": "Tito",
+  "versionCode": 2,
+  "versionLabel": "2.1.0",
+  "watchapp": {
+    "watchface": true
+  },
+  "appKeys": {},
+  "resources": {
+    "media": []
+  }
+}
