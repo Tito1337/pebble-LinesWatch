@@ -24,8 +24,7 @@ typedef struct {
     Layer *layer;
     Layer *points[2];
     Layer *segments[8];
-    PropertyAnimation *showAnimations[8];
-    PropertyAnimation *hideAnimations[8];
+    PropertyAnimation *animations[8];
     char currentSegments;
 } Quadrant;
 Quadrant quadrants[4];
@@ -71,35 +70,48 @@ void draw_cross(Layer *layer, GContext *ctx) {
     graphics_fill_rect(ctx, GRect(0, 82, 144, 4), 0, GCornerNone);
 }
 
+static void destroy_property_animation(PropertyAnimation **prop_animation) {
+  if (*prop_animation == NULL) {
+    return;
+  }
+
+  if (animation_is_scheduled((Animation*) *prop_animation)) {
+    animation_unschedule((Animation*) *prop_animation);
+  }
+
+  property_animation_destroy(*prop_animation);
+  *prop_animation = NULL;
+}
+
 /************/
 /* SEGMENTS */
 /************/
 /* segment_show draws a segment with an animation */
 void segment_show(Quadrant *quadrant, int id) {
+	GRect visible = Segments[id].visible;
+    GRect invisible = Segments[id].invisible;
+
     /* Ensures the segment is not animating to prevent bugs */
-    if(animation_is_scheduled(&quadrant->showAnimations[id]->animation)) {
-        animation_unschedule(&quadrant->showAnimations[id]->animation);
-    }
-    /* Ensures the segment is not animating to prevent bugs */
-    if(animation_is_scheduled(&quadrant->hideAnimations[id]->animation)) {
-        animation_unschedule(&quadrant->hideAnimations[id]->animation);
-    }
+    destroy_property_animation(&quadrant->animations[id]);
     
-    animation_schedule(&quadrant->showAnimations[id]->animation);
+    quadrant->animations[id] = property_animation_create_layer_frame(quadrant->segments[id], &invisible, &visible);
+    animation_set_duration(&quadrant->animations[id]->animation, AnimationTime);
+    animation_set_curve(&quadrant->animations[id]->animation, AnimationCurveLinear);
+    animation_schedule(&quadrant->animations[id]->animation);
 }
 
 /* segment_hide removes a segment with an animation */
 void segment_hide(Quadrant *quadrant, int id) {
+	GRect visible = Segments[id].visible;
+    GRect invisible = Segments[id].invisible;
+
     /* Ensures the segment is not animating to prevent bugs */
-    if(animation_is_scheduled(&quadrant->showAnimations[id]->animation)) {
-        animation_unschedule(&quadrant->showAnimations[id]->animation);
-    }
-    /* Ensures the segment is not animating to prevent bugs */
-    if(animation_is_scheduled(&quadrant->hideAnimations[id]->animation)) {
-        animation_unschedule(&quadrant->hideAnimations[id]->animation);
-    }
+    destroy_property_animation(&quadrant->animations[id]);
     
-    animation_schedule(&quadrant->hideAnimations[id]->animation);
+    quadrant->animations[id] = property_animation_create_layer_frame(quadrant->segments[id], &visible, &invisible);
+    animation_set_duration(&quadrant->animations[id]->animation, AnimationTime);
+    animation_set_curve(&quadrant->animations[id]->animation, AnimationCurveLinear);
+    animation_schedule(&quadrant->animations[id]->animation);
 }
 
 /* segment_draw calculates which segments need to be showed or hided.
@@ -140,15 +152,6 @@ void quadrant_init(Quadrant *quadrant, GRect coordinates) {
         quadrant->segments[i] = layer_create(Segments[i].invisible);
         layer_set_update_proc(quadrant->segments[i], fill_layer);
         layer_add_child(quadrant->layer, (quadrant->segments[i]));
-
-        // New memory management for animations, must be created & destroyed
-        quadrant->showAnimations[i] = property_animation_create_layer_frame(quadrant->segments[i], &Segments[i].invisible, &Segments[i].visible);
-        animation_set_duration(&quadrant->showAnimations[i]->animation, AnimationTime);
-        animation_set_curve(&quadrant->showAnimations[i]->animation, AnimationCurveLinear);
-
-        quadrant->hideAnimations[i] = property_animation_create_layer_frame(quadrant->segments[i], &Segments[i].visible, &Segments[i].invisible);
-        animation_set_duration(&quadrant->hideAnimations[i]->animation, AnimationTime);
-        animation_set_curve(&quadrant->hideAnimations[i]->animation, AnimationCurveLinear);
     }
 
     quadrant->currentSegments = 0b00000000;
@@ -165,8 +168,7 @@ void quadrant_deinit(Quadrant *quadrant) {
 
     for(int i=0; i<8; i++) {
         layer_destroy(quadrant->segments[i]);
-        property_animation_destroy(quadrant->showAnimations[i]);
-        property_animation_destroy(quadrant->hideAnimations[i]);
+    	destroy_property_animation(&quadrant->animations[i]);
     }
 
     quadrant->currentSegments = 0b00000000;
