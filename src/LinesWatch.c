@@ -1,13 +1,4 @@
-#include "pebble_os.h"
-#include "pebble_app.h"
-#include "pebble_fonts.h"
-
-#define MY_UUID { 0x1F, 0x8A, 0x52, 0xAB, 0x4E, 0x33, 0x42, 0x26, 0xA8, 0x9F, 0x46, 0xAB, 0x2A, 0xB5, 0x00, 0xB5 }
-PBL_APP_INFO(MY_UUID,
-             "LinesWatch", "Tito",
-             2, 1, /* App version */
-             INVALID_RESOURCE,
-             APP_INFO_WATCH_FACE);
+#include <Pebble.h>
 
 #define ConstantGRect(x, y, w, h) {{(x), (y)}, {(w), (h)}}
 
@@ -30,11 +21,10 @@ const GRect Points[2] = {
     that need to be globally accessible and the current segments byte for
     future comparison. */
 typedef struct {
-    Layer layer;
-    Layer points[2];
-    Layer segments[8];
-    PropertyAnimation animations[8];
-    bool cancelAnimations[8];
+    Layer *layer;
+    Layer *points[2];
+    Layer *segments[8];
+    PropertyAnimation *animations[8];
     char currentSegments;
 } Quadrant;
 Quadrant quadrants[4];
@@ -48,7 +38,7 @@ typedef struct {
     GRect visible;
     GRect invisible;
 } Segment;
-const Segment Segments[8] = {
+Segment Segments[8] = {
     {ConstantGRect(29, 0, 4, 29), ConstantGRect(29, 29, 4, 0)},
     {ConstantGRect(33, 53, 4, 29), ConstantGRect(33, 57, 4, 0)},
     {ConstantGRect(33, 53, 37, 4), ConstantGRect(37, 53, 0, 4)},
@@ -60,9 +50,8 @@ const Segment Segments[8] = {
 };
 
 /* Other globals */
-Window window;
-Layer cross;
-AppContextRef context;
+Window *window;
+Layer *cross;
 
 /*******************/
 /* GENERAL PURPOSE */
@@ -70,7 +59,7 @@ AppContextRef context;
 /* fill_layer ensures that a layer is always filled with the ForegroundColor */
 void fill_layer(Layer *layer, GContext *ctx) {
     graphics_context_set_fill_color(ctx, ForegroundColor);
-    graphics_fill_rect(ctx, layer->bounds, 0, GCornerNone);
+    graphics_fill_rect(ctx, layer_get_bounds(layer), 0, GCornerNone);
 }
 
 /* draw_cross draws the main cross (horizontal and vertical lines accross
@@ -81,39 +70,48 @@ void draw_cross(Layer *layer, GContext *ctx) {
     graphics_fill_rect(ctx, GRect(0, 82, 144, 4), 0, GCornerNone);
 }
 
+static void destroy_property_animation(PropertyAnimation **prop_animation) {
+  if (*prop_animation == NULL) {
+    return;
+  }
+
+  if (animation_is_scheduled((Animation*) *prop_animation)) {
+    animation_unschedule((Animation*) *prop_animation);
+  }
+
+  property_animation_destroy(*prop_animation);
+  *prop_animation = NULL;
+}
+
 /************/
 /* SEGMENTS */
 /************/
 /* segment_show draws a segment with an animation */
 void segment_show(Quadrant *quadrant, int id) {
-    GRect visible = Segments[id].visible;
+	GRect visible = Segments[id].visible;
     GRect invisible = Segments[id].invisible;
 
     /* Ensures the segment is not animating to prevent bugs */
-    if(animation_is_scheduled(&quadrant->animations[id].animation)) {
-        animation_unschedule(&quadrant->animations[id].animation);
-    }
+    destroy_property_animation(&quadrant->animations[id]);
     
-    property_animation_init_layer_frame(&quadrant->animations[id], &quadrant->segments[id], &invisible, &visible);
-    animation_set_duration(&quadrant->animations[id].animation, AnimationTime);
-    animation_set_curve(&quadrant->animations[id].animation, AnimationCurveLinear);
-    animation_schedule(&quadrant->animations[id].animation);
+    quadrant->animations[id] = property_animation_create_layer_frame(quadrant->segments[id], &invisible, &visible);
+    animation_set_duration(&quadrant->animations[id]->animation, AnimationTime);
+    animation_set_curve(&quadrant->animations[id]->animation, AnimationCurveLinear);
+    animation_schedule(&quadrant->animations[id]->animation);
 }
 
 /* segment_hide removes a segment with an animation */
 void segment_hide(Quadrant *quadrant, int id) {
-    GRect visible = Segments[id].visible;
+	GRect visible = Segments[id].visible;
     GRect invisible = Segments[id].invisible;
 
     /* Ensures the segment is not animating to prevent bugs */
-    if(animation_is_scheduled(&quadrant->animations[id].animation)) {
-        animation_unschedule(&quadrant->animations[id].animation);
-    }
+    destroy_property_animation(&quadrant->animations[id]);
     
-    property_animation_init_layer_frame(&quadrant->animations[id], &quadrant->segments[id], &visible, &invisible);
-    animation_set_duration(&quadrant->animations[id].animation, AnimationTime);
-    animation_set_curve(&quadrant->animations[id].animation, AnimationCurveLinear);
-    animation_schedule(&quadrant->animations[id].animation);
+    quadrant->animations[id] = property_animation_create_layer_frame(quadrant->segments[id], &visible, &invisible);
+    animation_set_duration(&quadrant->animations[id]->animation, AnimationTime);
+    animation_set_curve(&quadrant->animations[id]->animation, AnimationCurveLinear);
+    animation_schedule(&quadrant->animations[id]->animation);
 }
 
 /* segment_draw calculates which segments need to be showed or hided.
@@ -139,21 +137,38 @@ void segment_draw(Quadrant *quadrant, char new) {
 /*************/
 /* quadrant_init initializes the layer of a quadrant and the layers of
     its points and segments */
-void quadrant_init(Quadrant *quadrant, GRect coordinates, GContext *ctx) {
-    layer_init(&quadrant->layer, coordinates);
+void quadrant_init(Quadrant *quadrant, GRect coordinates) {
+    quadrant->layer = layer_create(coordinates);
 
     /* Two points visible for 6, 8 and 9 (always present) */
     for(int i=0; i<2; i++) {
-        layer_init(&(quadrant->points[i]), Points[i]);
-        quadrant->points[i].update_proc = fill_layer;
-        layer_add_child(&quadrant->layer, &(quadrant->points[i]));        
+        quadrant->points[i] = layer_create(Points[i]);
+        layer_set_update_proc(quadrant->points[i], fill_layer);
+        layer_add_child(quadrant->layer, quadrant->points[i]);
     }    
     
     /* Now we create the 8 segments, invisible */
     for(int i=0; i<8; i++) {
-        layer_init(&(quadrant->segments[i]), Segments[i].invisible);
-        quadrant->segments[i].update_proc = fill_layer;
-        layer_add_child(&quadrant->layer, &(quadrant->segments[i]));
+        quadrant->segments[i] = layer_create(Segments[i].invisible);
+        layer_set_update_proc(quadrant->segments[i], fill_layer);
+        layer_add_child(quadrant->layer, (quadrant->segments[i]));
+    }
+
+    quadrant->currentSegments = 0b00000000;
+}
+
+/* quadrant_deinit runs through the same as quadrant_init, but calls *_destroy
+    where the former called *_create */
+void quadrant_deinit(Quadrant *quadrant) {
+    layer_destroy(quadrant->layer);
+
+    for(int i=0; i<2; i++) {
+        layer_destroy(quadrant->points[i]);
+    }
+
+    for(int i=0; i<8; i++) {
+        layer_destroy(quadrant->segments[i]);
+    	destroy_property_animation(&quadrant->animations[i]);
     }
 
     quadrant->currentSegments = 0b00000000;
@@ -199,42 +214,60 @@ void quadrant_number(Quadrant *quadrant, int number) {
 /****************/
 /* MAIN METHODS */
 /****************/
-/* handle_init is called when the watchface is loaded on screen. It initializes
+
+void handle_minute_tick(struct tm *tick_time, TimeUnits units_changed);
+
+/* init is called when the watchface is loaded on screen. It initializes
     various layers for the main design */
-void handle_init(AppContextRef ctx) {
+void init() {
     /* Window inits */
-    window_init(&window, "LinesWatch");
-    window_stack_push(&window, true /* Animated */);
-    window_set_background_color(&window, BackgroundColor);
+    window = window_create();
+    window_stack_push(window, true /* Animated */);
+    window_set_background_color(window, BackgroundColor);
+
+    Layer *window_layer = window_get_root_layer(window);
     
     /* Cross */
-    layer_init(&cross, GRect(0, 0, 144, 168));
-    cross.update_proc = draw_cross;
-    layer_add_child(&window.layer, &cross);
+    cross = layer_create(GRect(0, 0, 144, 168));
+    layer_set_update_proc(cross, draw_cross);
+    layer_add_child(window_layer, cross);
     
     /* Quadrants */
     /* Each quarter of screen is 70x82 pixels */
-    quadrant_init(&quadrants[0], GRect(0, 0, 70, 82), ctx);
-    quadrant_init(&quadrants[1], GRect(74, 0, 70, 82), ctx);
-    quadrant_init(&quadrants[2], GRect(0, 86, 70, 82), ctx);
-    quadrant_init(&quadrants[3], GRect(74, 86, 70, 82), ctx);
+    quadrant_init(&quadrants[0], GRect(0, 0, 70, 82));
+    quadrant_init(&quadrants[1], GRect(74, 0, 70, 82));
+    quadrant_init(&quadrants[2], GRect(0, 86, 70, 82));
+    quadrant_init(&quadrants[3], GRect(74, 86, 70, 82));
     
-    layer_add_child(&window.layer, &quadrants[0].layer);
-    layer_add_child(&window.layer, &quadrants[1].layer);
-    layer_add_child(&window.layer, &quadrants[2].layer);
-    layer_add_child(&window.layer, &quadrants[3].layer);
+    layer_add_child(window_layer, quadrants[0].layer);
+    layer_add_child(window_layer, quadrants[1].layer);
+    layer_add_child(window_layer, quadrants[2].layer);
+    layer_add_child(window_layer, quadrants[3].layer);
+
+    tick_timer_service_subscribe(MINUTE_UNIT, handle_minute_tick);
+}
+
+/* deinit runs through the same as init, but calls *_destroy
+    where the former called *_create */
+void deinit() {
+    tick_timer_service_unsubscribe();
+
+    quadrant_deinit(&quadrants[0]);
+    quadrant_deinit(&quadrants[1]);
+    quadrant_deinit(&quadrants[2]);
+    quadrant_deinit(&quadrants[3]);
+
+    layer_destroy(cross);
+    window_destroy(window);
 }
 
 /* handle_minute_tick is called at every minute/time change. It gets the hour,
     minute and sends the numbers to each quadrant */
-void handle_minute_tick(AppContextRef ctx, PebbleTickEvent *tickE) {
-    context = ctx;
+void handle_minute_tick(struct tm *tick_time, TimeUnits units_changed) {
 
-    PblTm t;
-    get_time(&t);
     int hour, min;
-    min = t.tm_min;
-    hour = t.tm_hour;
+    min = tick_time->tm_min;
+    hour = tick_time->tm_hour;
 
     if(!clock_is_24h_style()) {
         hour = hour%12;
@@ -248,14 +281,10 @@ void handle_minute_tick(AppContextRef ctx, PebbleTickEvent *tickE) {
 }
 
 /* main pebble sets */
-void pbl_main(void *params) {
-  PebbleAppHandlers handlers = {
-    .init_handler = &handle_init,
-    .tick_info = {
-      .tick_handler = &handle_minute_tick,
-      .tick_units = MINUTE_UNIT
-    }
+int main(void) {
 
-  };
-  app_event_loop(params, &handlers);
+    init();
+    app_event_loop();
+    deinit();
+
 }

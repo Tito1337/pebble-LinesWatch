@@ -1,0 +1,4 @@
+.lock-waf_darwin_build
+
+# Ignore build generated files
+build
