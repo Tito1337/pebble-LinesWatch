@@ -1,4 +1,4 @@
-#include <Pebble.h>
+#include <pebble.h>
 
 #define ConstantGRect(x, y, w, h) {{(x), (y)}, {(w), (h)}}
 
